@@ -96,9 +96,32 @@ resource "aws_security_group" "pricing_demo" {
   }
 }
 
-resource "aws_lambda_function" "pricing_demo" {
-  # TODO: implement function
+data "archive_file" "python_lambda_package" {
+  type        = "zip"
+  source_file = "${path.module}/pricing.py"
+  output_path = "pricing.zip"
 }
+
+resource "aws_lambda_function" "pricing_demo" {
+  filename      = "pricing.zip"
+  function_name = "pricing_demo"
+  role          = aws_iam_role.pricing_demo.arn
+  runtime       = "python3.10"
+  handler       = "pricing.handler"
+  environment {
+    variables = { "SEED" = "825" } # required to run, but not used in handler
+  }
+}
+
+resource "aws_lambda_function_url" "pricing_demo" {
+  function_name      = aws_lambda_function.pricing_demo.function_name
+  authorization_type = "NONE"
+  cors {
+    allow_methods = ["GET"]
+    allow_origins = ["*"]
+  }
+}
+
 
 resource "aws_cloudwatch_metric_alarm" "pricing_demo_errors" {
   alarm_name          = "pricing_demo_errors"
@@ -114,4 +137,8 @@ resource "aws_cloudwatch_metric_alarm" "pricing_demo_errors" {
   dimensions = {
     FunctionName = aws_lambda_function.pricing_demo.function_name
   }
+}
+
+output "prcing_demo_url" {
+  value = aws_lambda_function_url.pricing_demo.function_url
 }
